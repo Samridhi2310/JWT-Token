@@ -33,14 +33,18 @@ app.post("/login", (req, res) => {
     const user = users.find((u) => u.username === username && u.password === password && u.role === role);
 
     if (user) {
-        // Generate JWT Token with 10s expiration
-        const token = jwt.sign({ username: user.username, role: user.role }, SECRET_KEY, { expiresIn: "10s" });
+        // Generate JWT Token with 1-day expiration
+        const token = jwt.sign(
+            { username: user.username, role: user.role }, 
+            SECRET_KEY, 
+            { expiresIn: "10s" } // 1 day
+        );
 
         res.cookie("jwtToken", token, {
-            httpOnly: true, // Prevent client-side JS from accessing it
+            httpOnly: false, // Prevent client-side JS from accessing it
             secure: false, // Set `true` if using HTTPS
-            sameSite: "Lax", // Lax is good for most cases
-            maxAge: 10 * 1000, // 10 seconds
+            sameSite: "Lax",
+            maxAge: 10000, // 1 day in milliseconds
         });
 
         return res.json({ message: "Login successful", token });
@@ -49,9 +53,29 @@ app.post("/login", (req, res) => {
     }
 });
 
+// 🔹 Middleware to Verify JWT Token
+function verifyToken(req, res, next) {
+    const token = req.cookies.jwtToken; // Get token from cookies
+    console.log(req.cookies)
 
+    if (!token) {
+        return res.status(401).json({ error: "No token provided" });
+    }
 
+    jwt.verify(token, SECRET_KEY, (err, decoded) => {
+        if (err) {
+            return res.status(403).json({ error: "Invalid token" });
+        }
 
+        req.user = decoded; // Store decoded user data in request object
+        next();
+    });
+}
+
+// 🔹 Protected Route: Verify JWT Token
+app.get("/verify-token", verifyToken, (req, res) => {
+    res.json({ message: "Token is valid", user: req.user });
+});
 
 // Start Server
 const PORT = 8000;
